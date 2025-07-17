@@ -11,12 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('jenis_kendaraan', function (Blueprint $table) {
-            $table->id();
-            $table->string('nama_jenis', 100)->unique(); // contoh: Motor, Mobil
-            $table->decimal('tarif_per_jam', 10, 2)->default(0); // tarif parkir per jam
-            $table->timestamps(); // created_at dan updated_at
-        });
+        // Cek apakah tabel belum ada, agar tidak membuat ulang
+        if (!Schema::hasTable('jenis_kendaraan')) {
+            Schema::create('jenis_kendaraan', function (Blueprint $table) {
+                $table->id();
+                $table->string('nama_jenis', 100)->unique(); // contoh: Motor, Mobil
+                $table->decimal('tarif_per_jam', 10, 2)->default(0); // tarif parkir per jam
+                $table->timestamps(); // created_at dan updated_at
+            });
+        }
     }
 
     /**
@@ -24,6 +27,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('jenis_kendaraan');
+        // Hanya hapus jika tabelnya benar-benar ada
+        if (Schema::hasTable('jenis_kendaraan')) {
+            Schema::dropIfExists('jenis_kendaraan');
+        }
     }
 };

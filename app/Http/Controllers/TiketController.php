@@ -6,34 +6,36 @@ use App\Models\Tiket;
 use App\Models\JenisKendaraan;
 use App\Models\User;
 use App\Models\Lokasi;
+use App\Models\Pemasukan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class TiketController extends Controller
 {
-    // ✅ 1. Tampilkan semua tiket dengan relasi lengkap
+    // 1. Tampilkan semua tiket
     public function index()
     {
         $tiket = Tiket::with(['jenisKendaraan', 'juruParkir', 'lokasi'])->get();
         return response()->json(['data' => $tiket], 200);
     }
 
-    // ✅ 2. Simpan tiket baru berdasarkan input NAMA (bukan ID)
-    public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'nomor_karcis'         => 'required|string|max:50|unique:tiket_parkir,nomor_karcis',
-            'jenis_kendaraan_nama' => 'required|string',
-            'tanggal'              => 'required|date',
-            'tarif'                => 'required|integer',
-            'juru_parkir_nama'     => 'required|string',
-            'lokasi_nama'          => 'required|string',
-        ]);
+    // 2. Simpan tiket baru & catat pemasukan otomatis
+public function store(Request $request)
+{
+    // Validasi input tanpa nomor_karcis
+    $validator = Validator::make($request->all(), [
+        'jenis_kendaraan_nama' => 'required|string',
+        'tanggal'              => 'required|date',
+        'tarif'                => 'required|integer',
+        'juru_parkir_nama'     => 'required|string',
+        'lokasi_nama'          => 'required|string',
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
 
+    try {
         // Cari ID berdasarkan nama
         $jenis  = JenisKendaraan::where('nama_jenis', $request->jenis_kendaraan_nama)->first();
         $juru   = User::where('nama', $request->juru_parkir_nama)->first();
@@ -50,9 +52,16 @@ class TiketController extends Controller
             ], 404);
         }
 
-        // Simpan tiket
+        // Generate nomor karcis otomatis berdasarkan tanggal
+        $lastKarcis = Tiket::where('tanggal', $request->tanggal)
+            ->orderByDesc('nomor_karcis')
+            ->first();
+
+        $nextKarcis = $lastKarcis ? intval($lastKarcis->nomor_karcis) + 1 : 1;
+
+        // Simpan tiket baru
         $tiket = Tiket::create([
-            'nomor_karcis'       => $request->nomor_karcis,
+            'nomor_karcis'       => (string) $nextKarcis,
             'jenis_kendaraan_id' => $jenis->id,
             'tanggal'            => $request->tanggal,
             'tarif'              => $request->tarif,
@@ -60,22 +69,53 @@ class TiketController extends Controller
             'lokasi_id'          => $lokasi->id,
         ]);
 
-        return response()->json(['pesan' => 'Tiket berhasil dibuat', 'data' => $tiket], 201);
+        // Simpan pemasukan
+        Pemasukan::create([
+            'tiket_id'   => $tiket->id,
+            'jumlah'     => $request->tarif,
+            'tanggal'    => $request->tanggal,
+            'keterangan' => 'Pemasukan dari tiket ' . $nextKarcis
+        ]);
+
+        return response()->json([
+            'pesan' => 'Tiket dan pemasukan berhasil dibuat',
+            'data'  => $tiket
+        ], 201);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'pesan' => 'Terjadi kesalahan saat menyimpan data',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+    // 3. Tampilkan detail tiket
+ public function show($id)
+{
+    $tiket = Tiket::with(['jenisKendaraan', 'juruParkir', 'lokasi'])->find($id);
+
+    if (!$tiket) {
+        return response()->json(['pesan' => 'Tiket tidak ditemukan'], 404);
     }
 
-    // ✅ 3. Detail tiket berdasarkan ID
-    public function show($id)
-    {
-        $tiket = Tiket::with(['jenisKendaraan', 'juruParkir', 'lokasi'])->find($id);
+    return response()->json([
+        'status' => 'Berhasil',
+        'data' => [
+            'nomor_karcis'     => $tiket->nomor_karcis,
+            'jenis_kendaraan'  => $tiket->jenisKendaraan->nama_jenis ?? '-',
+            'tanggal'          => $tiket->tanggal,
+            'waktu'            => date('H:i:s', strtotime($tiket->created_at)), // pastikan kolom ini ada
+            'lokasi'           => $tiket->lokasi->nama_lokasi ?? '-',
+            'juru_parkir_nama' => $tiket->juruParkir->nama ?? '-',
+            'tarif'            => $tiket->tarif,
+        ]
+    ], 200);
+}
 
-        if (!$tiket) {
-            return response()->json(['pesan' => 'Tiket tidak ditemukan'], 404);
-        }
 
-        return response()->json(['data' => $tiket], 200);
-    }
-
-    // ✅ 4. Update tiket (opsional, masih pakai ID)
+    // 4. Update tiket (optional)
     public function update(Request $request, $id)
     {
         $tiket = Tiket::find($id);
@@ -102,7 +142,7 @@ class TiketController extends Controller
         return response()->json(['pesan' => 'Tiket berhasil diperbarui', 'data' => $tiket], 200);
     }
 
-    // ✅ 5. Hapus tiket
+    // 5. Hapus tiket
     public function destroy($id)
     {
         $tiket = Tiket::find($id);

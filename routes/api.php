@@ -7,6 +7,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TiketController;
 use App\Http\Controllers\LokasiController;
 use App\Http\Controllers\JenisKendaraanController;
+use App\Http\Controllers\PemasukanController;
 
 //Login and Register
 Route::post('/login', [AuthController::class, 'login']);
@@ -35,3 +36,14 @@ Route::delete('/lokasi/{id}', [LokasiController::class, 'destroy']);
 Route::get('/jenis-kendaraan', [JenisKendaraanController::class, 'index']);
 Route::post('/jenis-kendaraan', [JenisKendaraanController::class, 'store']);
 Route::delete('/jenis-kendaraan/{id}', [JenisKendaraanController::class, 'destroy']);
+
+// Pemasukan
+Route::middleware('auth:sanctum')->prefix('pemasukan')->group(function () {
+    Route::get('/', [PemasukanController::class, 'index']);
+    Route::post('/', [PemasukanController::class, 'store']);
+    Route::get('/total-harian', [PemasukanController::class, 'totalPemasukanHarian']);
+    Route::get('/total-semua', [PemasukanController::class, 'totalSemuaPemasukan']);
+    Route::get('/pendapatan-hari-ini', [PemasukanController::class, 'pendapatanHariIni']);
+    Route::get('/karcis-hari-ini', [PemasukanController::class, 'jumlahKarcisHariIni']);
+    Route::get('/{id}', [PemasukanController::class, 'show']);
+});

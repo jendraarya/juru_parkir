@@ -36,4 +36,11 @@ class Tiket extends Model
     {
         return $this->belongsTo(Lokasi::class, 'lokasi_id');
     }
+
+    // Relasi: Tiket hasOne Pemasukan
+    public function pemasukan()
+{
+    return $this->hasOne(Pemasukan::class, 'tiket_id');
+}
+
 }
