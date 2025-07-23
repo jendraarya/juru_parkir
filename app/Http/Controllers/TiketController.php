@@ -20,15 +20,14 @@ class TiketController extends Controller
     }
 
     // 2. Simpan tiket baru & catat pemasukan otomatis
-public function store(Request $request)
+    public function store(Request $request)
 {
-    // Validasi input tanpa nomor_karcis
     $validator = Validator::make($request->all(), [
-        'jenis_kendaraan_nama' => 'required|string',
-        'tanggal'              => 'required|date',
-        'tarif'                => 'required|integer',
-        'juru_parkir_nama'     => 'required|string',
-        'lokasi_nama'          => 'required|string',
+        'jenis_kendaraan_id' => 'required|exists:jenis_kendaraan,id',
+        'tanggal'            => 'required|date',
+        'tarif'              => 'required|integer',
+        'juru_parkir_id'     => 'required|exists:users,id',
+        'lokasi_id'          => 'required|exists:lokasi,id',
     ]);
 
     if ($validator->fails()) {
@@ -36,49 +35,41 @@ public function store(Request $request)
     }
 
     try {
-        // Cari ID berdasarkan nama
-        $jenis  = JenisKendaraan::where('nama_jenis', $request->jenis_kendaraan_nama)->first();
-        $juru   = User::where('nama', $request->juru_parkir_nama)->first();
-        $lokasi = Lokasi::where('nama_lokasi', $request->lokasi_nama)->first();
+        // Format tanggal ke ddmmyyyy
+        $tanggalFormatted = \Carbon\Carbon::parse($request->tanggal)->format('dmY');
 
-        if (!$jenis || !$juru || !$lokasi) {
-            return response()->json([
-                'pesan' => 'Data tidak valid',
-                'detail' => [
-                    'jenis_kendaraan' => $jenis ? '✔' : '❌ Tidak ditemukan',
-                    'juru_parkir'     => $juru ? '✔' : '❌ Tidak ditemukan',
-                    'lokasi'          => $lokasi ? '✔' : '❌ Tidak ditemukan'
-                ]
-            ], 404);
-        }
+        // Hitung jumlah tiket yang sudah ada di tanggal itu
+        $jumlahHariIni = Tiket::where('tanggal', $request->tanggal)->count();
 
-        // Generate nomor karcis otomatis berdasarkan tanggal
-        $lastKarcis = Tiket::where('tanggal', $request->tanggal)
-            ->orderByDesc('nomor_karcis')
-            ->first();
+        // Nomor urut dengan 2 digit (misal 01, 02)
+        $urutan = str_pad($jumlahHariIni + 1, 2, '0', STR_PAD_LEFT);
 
-        $nextKarcis = $lastKarcis ? intval($lastKarcis->nomor_karcis) + 1 : 1;
+        // Gabungkan jadi nomor karcis akhir
+        $nomorKarcis = '00' . $urutan . $tanggalFormatted;
 
-        // Simpan tiket baru
+        // Simpan tiket
         $tiket = Tiket::create([
-            'nomor_karcis'       => (string) $nextKarcis,
-            'jenis_kendaraan_id' => $jenis->id,
+            'nomor_karcis'       => $nomorKarcis,
+            'jenis_kendaraan_id' => $request->jenis_kendaraan_id,
             'tanggal'            => $request->tanggal,
             'tarif'              => $request->tarif,
-            'juru_parkir_id'     => $juru->id,
-            'lokasi_id'          => $lokasi->id,
+            'juru_parkir_id'     => $request->juru_parkir_id,
+            'lokasi_id'          => $request->lokasi_id,
         ]);
 
-        // Simpan pemasukan
+        $tiket->load(['jenisKendaraan', 'juruParkir', 'lokasi']);
+
+
+        // Simpan pemasukan otomatis
         Pemasukan::create([
             'tiket_id'   => $tiket->id,
             'jumlah'     => $request->tarif,
             'tanggal'    => $request->tanggal,
-            'keterangan' => 'Pemasukan dari tiket ' . $nextKarcis
+            'keterangan' => 'Pemasukan dari tiket ' . $nomorKarcis
         ]);
 
         return response()->json([
-            'pesan' => 'Tiket dan pemasukan berhasil dibuat',
+            'pesan' => 'Tiket berhasil dibuat',
             'data'  => $tiket
         ], 201);
 
@@ -89,6 +80,30 @@ public function store(Request $request)
         ], 500);
     }
 }
+
+// Mendapatkan nomor karcis baru
+public function getNomorKarcisBaru()
+{
+    $tanggal = now()->format('Y-m-d');
+    $tanggalFormatted = now()->format('dmY');
+
+    $lastKarcis = Tiket::where('tanggal', $tanggal)
+        ->orderByDesc('nomor_karcis')
+        ->first();
+
+    $nextUrutan = 1;
+    if ($lastKarcis) {
+        // Ambil 4 digit urutan dari depan (karcis format: 000112072025)
+        $urutan = substr($lastKarcis->nomor_karcis, 0, 4);
+        $nextUrutan = intval($urutan) + 1;
+    }
+
+    $formatted = str_pad($nextUrutan, 4, '0', STR_PAD_LEFT) . $tanggalFormatted;
+
+    return response()->json(['nomor_karcis' => $formatted]);
+}
+
+
 
 
     // 3. Tampilkan detail tiket

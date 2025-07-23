@@ -11,6 +11,10 @@ use App\Http\Controllers\PemasukanController;
 
 //Login and Register
 Route::post('/login', [AuthController::class, 'login']);
+Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+    return $request->user();
+});
+Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 Route::post('/register', [AuthController::class, 'register']); // Tambahan register
 
 // User
@@ -26,6 +30,8 @@ Route::post('/tiket', [TiketController::class, 'store']);
 Route::get('/tiket/{id}', [TiketController::class, 'show']);
 Route::put('/tiket/{id}', [TiketController::class, 'update']);
 Route::delete('/tiket/{id}', [TiketController::class, 'destroy']);
+Route::get('/karcis/nomor-baru', [TiketController::class, 'getNomorKarcisBaru']);
+
 
 // Lokasi
 Route::get('/lokasi', [LokasiController::class, 'index']);
@@ -43,7 +49,7 @@ Route::middleware('auth:sanctum')->prefix('pemasukan')->group(function () {
     Route::post('/', [PemasukanController::class, 'store']);
     Route::get('/total-harian', [PemasukanController::class, 'totalPemasukanHarian']);
     Route::get('/total-semua', [PemasukanController::class, 'totalSemuaPemasukan']);
-    Route::get('/pendapatan-hari-ini', [PemasukanController::class, 'pendapatanHariIni']);
-    Route::get('/karcis-hari-ini', [PemasukanController::class, 'jumlahKarcisHariIni']);
+    Route::get('/pendapatan-hari-ini', [PemasukanController::class, 'pemasukanHariIni']);
+    Route::get('/karcis-hari-ini', [PemasukanController::class, 'jumlahTransaksiHariIni']);
     Route::get('/{id}', [PemasukanController::class, 'show']);
 });

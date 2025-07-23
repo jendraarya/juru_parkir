@@ -13,7 +13,9 @@ class PemasukanController extends Controller
     public function index()
     {
         $userId = Auth::id();
-
+        if (!$userId) {
+        return response()->json(['pesan' => 'Token tidak dikenali / user belum login'], 401);
+    }
         $data = Pemasukan::with('tiket')
             ->whereHas('tiket', function ($query) use ($userId) {
                 $query->where('juru_parkir_id', $userId);
@@ -84,16 +86,51 @@ class PemasukanController extends Controller
 
     // 5. Total pemasukan hari ini milik user login
     public function pemasukanHariIni()
-    {
+{
+    try {
         $userId = Auth::id();
+        $today = now()->format('Y-m-d');
 
-        $total = Pemasukan::whereDate('tanggal', now()->toDateString())
-            ->whereHas('tiket', function ($query) use ($userId) {
-                $query->where('juru_parkir_id', $userId);
-            })->sum('jumlah');
+        $data = Pemasukan::with('tiket')
+            ->whereDate('tanggal', $today)
+            ->get();
 
-        return response()->json(['pemasukan_hari_ini' => $total]);
+        $total = 0;
+        $debug = [];
+
+        foreach ($data as $item) {
+            $tiket = $item->tiket;
+
+            $debug[] = [
+                'pemasukan_id' => $item->id,
+                'jumlah' => $item->jumlah,
+                'tanggal' => $item->tanggal,
+                'tiket_id' => $item->tiket_id,
+                'tiket_ada' => $tiket ? true : false,
+                'tiket_juru_parkir_id' => $tiket->juru_parkir_id ?? null,
+                'user_id' => $userId,
+                'cocok' => ($tiket && $tiket->juru_parkir_id == $userId) ? true : false,
+            ];
+
+            if ($tiket && $tiket->juru_parkir_id == $userId) {
+                $total += $item->jumlah;
+            }
+        }
+
+        return response()->json([
+            'pendapatan_hari_ini' => $total,
+            'debug_total' => $data->count(),
+            'data_debug' => $debug,
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Terjadi kesalahan server',
+            'error' => $e->getMessage(),
+        ], 500);
     }
+}
+
+
 
     // 6. Jumlah transaksi pemasukan hari ini (jumlah karcis) milik user login
     public function jumlahTransaksiHariIni()
